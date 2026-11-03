@@ -2,20 +2,20 @@
 name: shared-skills-library
 description: Manage Liki's Google Drive skills library across Windows and Mac. Find skills, check their original sources for updates, scan existing installations, and add, install, update or remove complete standalone packages. Use during authorised skill installations to record them in the shared library. Plugin-supplied skills are labelled and installed through their whole parent plugin.
 metadata:
-  version: "1.0.2"
+  version: "1.0.3"
 ---
 
 # Shared Skills Library
 
-Version 1.0.2. This manages packages and installation records. Project Skill Advisor remains retired; do not invoke it or restore its registration/approval machinery.
+Version 1.0.3. This manages packages and installation records. Project Skill Advisor remains retired; do not invoke it or restore its registration/approval machinery.
 
 ## Start here
 
 Use the bundled `scripts/library.py` with Python 3.9 or newer. It uses only the standard library. Resolve paths from this installed skill, never from the current project. Read [usage and setup](references/usage.md) for the command interface and first-device setup.
 
-Before any requested library work, run `python scripts/library.py --json self-check` from this skill's directory. This freshly checks this running manager against its original GitHub package, with Git ref discovery as a fallback if the API fails. Exit 0 means current: continue silently, without an update-status notification. Exit 3 means an update is pending: tell the user first and pause the requested work. Exit 4 means freshness could not be verified: explain the failure first and pause. Do not treat an offline check, local modification or missing baseline as current. Read only the settings and source metadata needed for this check before it completes. Do not install or catalogue another skill first.
+Before any requested library work, run `python scripts/library.py --json self-check` from this skill's directory. This freshly checks this running manager against its original GitHub package, with Git ref discovery as a fallback if the API fails. Exit 0 means current: continue silently, without an update-status notification. Exit 3 means an update is pending: tell the user first and pause ordinary library work. If the user has already explicitly requested the manager's source update, report the pending update and run `update shared-skills-library --from-source`; this narrow recovery action takes precedence over the ordinary pause. Exit 4 always means freshness could not be verified: explain the failure first and pause. Do not treat an offline check, local modification or missing baseline as current. Read only the settings and manager source metadata needed for this check before it completes. Do not install or catalogue another skill first.
 
-Every operational command, including setup, enforces this check itself. Apply a manager update only when explicitly requested; `update shared-skills-library --from-source` can resolve a pending update without being blocked by the update it is meant to apply. There is no general bypass. Help remains available offline. Resume the original work after the update has been verified current.
+Every operational command, including setup, enforces this check itself. A pending manager update can be resolved only through the explicitly requested `--from-source` path, which verifies the replacement against the publisher contents checked at the start. A plain shared-package update remains paused. There is no general bypass. Help remains available offline. Run `self-check` after recovery and resume the original work only after it verifies current.
 
 Local settings live under effective `CODEX_HOME/shared-skills-library/device.json` (default `~/.codex`). They locate the synced Drive root and this device's real local skills folder. Do not assume another device uses the same absolute Drive path.
 

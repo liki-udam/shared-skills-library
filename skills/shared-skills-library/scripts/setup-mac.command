@@ -1,5 +1,5 @@
 #!/bin/sh
-# Shared Skills Library setup v1.0.2. Uses existing Python only.
+# Shared Skills Library setup v1.0.3. Uses existing Python only.
 set -eu
 task_script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 for task_python in python3 python /opt/homebrew/bin/python3 /usr/local/bin/python3; do

@@ -1,4 +1,4 @@
-# Shared Skills Library v1.0.2
+# Shared Skills Library v1.0.3
 
 ## Using it in chat
 
@@ -56,9 +56,13 @@ python library.py [--library-root PATH] [--config PATH] [--offline] [--json] COM
 
 `self-check` needs no configured device or library. It writes no catalogue, package, settings or device receipt. Human output is silent when current. JSON output contains `manager_check` with status, check time, source URL and available revision/content hashes. Exit codes are 0 for current, 3 for an available update and 4 for verification failure. Blocked operations use the same codes and return `paused: true`. Successful operational JSON retains `version`, `result` and `checks`, and adds `manager_check`.
 
-The check compares actual running files with the pinned publisher package, ignoring repository changes outside the manager folder. API failure falls back to Git ref discovery; Git is needed only for that fallback. Network calls are bounded, do not prompt for sign-in and never reuse an earlier invocation's current status. An unrecognised local modification is preserved and pauses work. A shared catalogue version alone never proves the running copy is current.
+The check compares actual running files with the pinned publisher package, ignoring repository changes outside the manager folder. It reads only manager metadata before checking freshness, so an unrelated damaged catalogue record cannot prevent `self-check`. Operational commands still validate the rest of the catalogue after freshness succeeds. A damaged manager record or publisher archive produces a verification-failed paused result. API failure falls back to Git ref discovery; Git is needed only for that fallback. Network calls are bounded, do not prompt for sign-in and never reuse an earlier invocation's current status. An unrecognised local modification is preserved and pauses work. A shared catalogue version alone never proves the running copy is current.
 
-When explicitly authorised, `update shared-skills-library --from-source` may resolve a detected pending update. An unrelated command or offline flag cannot bypass the check. Run `self-check` again after updating before resuming the original task.
+When explicitly authorised, `update shared-skills-library --from-source` may resolve a detected pending update. Report the pending update, then execute this already-authorised recovery rather than stopping before it. The replacement must match the publisher revision and contents verified at preflight. A plain `update shared-skills-library`, an unrelated command or an offline flag cannot bypass a pending check. Verification failure still pauses even source updates. Run `self-check` again after updating before resuming the original task.
+
+Even when the running manager is current, a shared selection with different contents cannot replace it through a plain update. Use the explicitly authorised source path to obtain the freshly verified publisher package. A failed replacement check returns exit 4, `status: verification_failed` and `paused: true`, without changing the installed or shared package; `manager_check` retains the original preflight evidence.
+
+Immutable package history now retains an optional verified `source` snapshot per content hash. Before promotion, publication preserves the previous selected package's pinned source; it also records the new package's source. This lets another device recognise same-version fixes by their actual contents. Existing entries remain readable. Historical records without pinned evidence stay unverified until that evidence is established; a lower version label is not proof of origin.
 
 | Command | Behaviour |
 |---|---|

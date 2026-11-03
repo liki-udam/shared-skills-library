@@ -1,4 +1,4 @@
-"""Shared Skills Library v1.0.2: download a complete, pinned GitHub skill."""
+"""Shared Skills Library v1.0.3: download a complete, pinned GitHub skill."""
 from __future__ import annotations
 
 from io import BytesIO
@@ -11,6 +11,7 @@ import tempfile
 from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zipfile
+import zlib
 
 MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
 MAX_EXPANDED_BYTES = 100 * 1024 * 1024
@@ -139,7 +140,10 @@ def download_github_skill(source, revision, destination, fetch_bytes=None):
         if not any(len(parts) == 1 and re.fullmatch(r"(?:LICEN[CS]E|COPYING)(?:\..+)?", parts[0], re.IGNORECASE)
                    for parts in selected_files):
             selected_files.update(root_licences)
-        skill_bytes = archive.read(selected_files[("SKILL.md",)])
+        try:
+            skill_bytes = archive.read(selected_files[("SKILL.md",)])
+        except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError) as error:
+            raise ValueError('Publisher archive failed content integrity validation') from error
         name = _package_name(skill_bytes)
         destination = Path(destination).expanduser()
         if destination.is_symlink():
@@ -180,10 +184,12 @@ def download_github_skill(source, revision, destination, fetch_bytes=None):
                 metadata_file.write("\n")
             stage.rename(target)
             return target
-        except Exception:
+        except Exception as error:
             # stage was created under the already resolved explicit destination.
             if stage.exists() and stage.parent == destination:
                 shutil.rmtree(stage)
             if metadata_created and metadata_path.parent == destination:
                 metadata_path.unlink(missing_ok=True)
+            if isinstance(error, (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError)):
+                raise ValueError('Publisher archive failed content integrity validation') from error
             raise

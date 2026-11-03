@@ -1,4 +1,4 @@
-"""Shared Skills Library v1.0.2: commands, dated device receipts and catalogue."""
+"""Shared Skills Library v1.0.3: commands, dated device receipts and catalogue."""
 from __future__ import annotations
 
 import argparse
@@ -20,11 +20,15 @@ from .store import Library, LibraryError, entry_id, fingerprint, read_skill
 from .updates import check_all
 from .self_check import check_manager
 
-VERSION = '1.0.2'
+VERSION = '1.0.3'
 MANAGER_NAME = 'shared-skills-library'
 MANAGER_REPOSITORY = 'liki-udam/shared-skills-library'
 MANAGER_SOURCE_PATH = 'skills/shared-skills-library'
 LEGACY_MANAGER_ID = 'standalone-shared-skills-library-cc8fa642dee9'
+
+
+class ManagerVerificationError(LibraryError):
+    """A manager update target failed verification before publication."""
 
 
 def now():
@@ -275,9 +279,23 @@ def metadata_for_source(directory, args):
             'requirements': [], 'accounts_costs': 'Unknown; inspect the original source and supporting files.', 'platforms': ['Not independently verified']}
 
 
-def manager_entry(library):
+def manager_entry(library, *, preflight=False):
     """Keep the original manager identity after moving its distribution to GitHub."""
-    named = [entry for entry in library.entries() if entry['kind'] == 'standalone' and entry['name'] == MANAGER_NAME]
+    if preflight:
+        entries = []
+        for path in sorted(library.entry_dir.glob('standalone-shared-skills-library-*.json')):
+            if not re.fullmatch(r'standalone-shared-skills-library-[0-9a-f]{12}(?:[^a-z0-9-].*)?\.json', path.name):
+                continue
+            if path.is_symlink() or path.resolve().parent != library.entry_dir.resolve():
+                raise LibraryError('Linked manager records are not supported.')
+            entry = library._validate(read_json(path))
+            if path.name != entry['id'] + '.json' or entry['name'] != MANAGER_NAME:
+                raise LibraryError('Conflicting manager catalogue copies need reconciliation.')
+            if not library._is_excluded(entry['id']):
+                entries.append(entry)
+    else:
+        entries = library.entries()
+    named = [entry for entry in entries if entry['kind'] == 'standalone' and entry['name'] == MANAGER_NAME]
     matching = [entry for entry in named if entry['id'] == LEGACY_MANAGER_ID or
                 (entry.get('source', {}).get('repository') == MANAGER_REPOSITORY and
                  entry.get('source', {}).get('path') == MANAGER_SOURCE_PATH)]
@@ -439,7 +457,8 @@ def update_from_source(library, settings, entry, check, skills_root=None):
     if entry['kind'] == 'plugin':
         return {'action': 'update_plugin', 'plugin': entry['plugin'], 'detail': 'Update the whole parent plugin through its original provider, then rescan.'}
     revision = check.get('latest_revision')
-    if not revision or check.get('status') not in {'update_available', 'baseline_unknown', 'source_changed'}:
+    if not revision or (check.get('status') not in {'update_available', 'baseline_unknown', 'source_changed'}
+                        and not (entry['name'] == MANAGER_NAME and check.get('status') == 'current')):
         raise LibraryError('No newer or reviewable original-source revision was verified; inspect the source check before updating.')
     selected_root = installation_root(entry, settings, skills_root)
     target = selected_root / entry['name']
@@ -451,7 +470,15 @@ def update_from_source(library, settings, entry, check, skills_root=None):
     observed_release = revision if entry['source'].get('tracking') == 'release' else None
     revision = resolve_revision(entry['source'], revision)
     with tempfile.TemporaryDirectory(prefix='shared-skills-source-') as temporary:
-        source = download_github_skill(entry['source'], revision, Path(temporary))
+        try:
+            source = download_github_skill(entry['source'], revision, Path(temporary))
+            manager_hash = fingerprint(source) if entry['name'] == MANAGER_NAME else None
+        except (OSError, ValueError) as error:
+            if entry['name'] == MANAGER_NAME:
+                raise ManagerVerificationError('The manager source download could not be verified; library work is paused. ' + str(error)) from error
+            raise
+        if entry['name'] == MANAGER_NAME and manager_hash != check.get('latest_hash'):
+            raise ManagerVerificationError('The manager download differs from the freshly checked publisher package; library work is paused.')
         metadata = {key: deepcopy(value) for key, value in entry.items() if key not in {'package', 'versions', 'updated_at'}}
         metadata['source'].update(revision=revision, baseline_verified=True, evidence='Complete package fetched from this immutable GitHub revision')
         if observed_release:
@@ -468,7 +495,7 @@ def update_from_source(library, settings, entry, check, skills_root=None):
 
 
 def parser():
-    command = argparse.ArgumentParser(description='Shared Skills Library v1.0.2')
+    command = argparse.ArgumentParser(description='Shared Skills Library v1.0.3')
     command.add_argument('--library-root', type=Path)
     command.add_argument('--config', type=Path)
     command.add_argument('--offline', action='store_true')
@@ -519,9 +546,17 @@ def main(argv=None):
         settings = read_json(config_path, {})
         root = args.library_root or settings.get('library_root') or os.environ.get('SKILL_LIBRARY_ROOT')
         library = Library(Path(root)) if root else None
-        manager = manager_entry(library) if library is not None else None
-        manager_check = check_manager(Path(__file__).resolve().parents[2], manager, offline=args.offline)
-        manager_update = (args.command == 'update' and manager is not None
+        try:
+            manager = manager_entry(library, preflight=True) if library is not None else None
+        except (LibraryError, OSError, ValueError) as error:
+            manager = None
+            manager_check = {'status': 'verification_failed', 'checked_at': now(),
+                             'source_url': 'https://github.com/' + MANAGER_REPOSITORY,
+                             'latest_revision': None,
+                             'detail': 'Manager metadata could not be verified; library work is paused. ' + str(error)}
+        else:
+            manager_check = check_manager(Path(__file__).resolve().parents[2], manager, offline=args.offline)
+        manager_update = (args.command == 'update' and args.from_source and manager is not None
                           and args.name in {manager['id'], manager['name']})
         if args.command == 'self-check' or (manager_check['status'] != 'current' and not
                 (manager_update and manager_check['status'] == 'update_available')):
@@ -563,12 +598,14 @@ def main(argv=None):
                 result = library.install(args.name, destination)
             elif args.command == 'update':
                 if args.from_source:
-                    precheck = manager_check if manager_update and manager_check['status'] == 'update_available' else refresh_checks(library, selected, settings, args.offline)[0]
+                    precheck = manager_check if manager_update else refresh_checks(library, selected, settings, args.offline)[0]
                     result = update_from_source(library, settings, selected[0], precheck, args.skills_root)
                     selected = [library.get(args.name)]
                 elif selected[0]['kind'] == 'plugin':
                     result = {'action': 'update_plugin', 'plugin': selected[0]['plugin'], 'detail': 'Update the whole plugin through its original installation route.'}
                 else:
+                    if selected[0]['name'] == MANAGER_NAME and selected[0].get('package', {}).get('hash') != manager_check.get('latest_hash'):
+                        raise ManagerVerificationError('The selected shared manager differs from the freshly checked publisher package; use --from-source. Library work is paused.')
                     result = library.install(args.name, installation_root(selected[0], settings, args.skills_root))
             elif args.command == 'remove':
                 result = library.archive_entry(args.name) if args.from_library else remove_local(library, settings, args.name, args.skills_root)
@@ -592,6 +629,14 @@ def main(argv=None):
         else:
             print_human(output)
         return 0
+    except ManagerVerificationError as error:
+        output = {'version': VERSION, 'status': 'verification_failed', 'paused': True,
+                  'detail': str(error), 'manager_check': manager_check}
+        if args.json:
+            print(json.dumps(output, ensure_ascii=False))
+        else:
+            print(str(error), file=sys.stderr)
+        return 4
     except (LibraryError, OSError, ValueError) as error:
         output = {'status': 'error', 'detail': str(error)}
         if args.json:

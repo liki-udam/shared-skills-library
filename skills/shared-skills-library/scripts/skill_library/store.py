@@ -1,4 +1,4 @@
-"""Portable, verified skill packages and reversible local installation, v1.0.2.
+"""Portable, verified skill packages and reversible local installation, v1.0.3.
 
 Each package is immutable. Expected-content checks detect stale local writers;
 they are not a distributed lock against another computer's Drive client.
@@ -405,8 +405,24 @@ class Library:
         entry.setdefault("accounts_costs", "Unknown; inspect the skill's requirements")
         entry.setdefault("platforms", [])
         versions = deepcopy(old.get("versions", []) if old else [])
+        # Bind source evidence to the immutable contents it actually described.
+        # A different device may promote a fix without changing its version label.
+        def verified_source(value):
+            return (deepcopy(value) if value.get('kind') == 'github'
+                    and value.get('baseline_verified') is True
+                    and re.fullmatch(r'[0-9a-fA-F]{40}', str(value.get('revision', ''))) else None)
+        previous_source = verified_source((old or {}).get('source') or {})
+        if previous_source:
+            for version in versions:
+                if version.get('hash') == (old or {}).get('package', {}).get('hash'):
+                    version.setdefault('source', previous_source)
         if not any(item.get("hash") == digest for item in versions):
             versions.append({"hash": digest, "path": relative, "version": entry["version"], "created_at": _now()})
+        current_source = verified_source(source)
+        if current_source:
+            for version in versions:
+                if version.get('hash') == digest:
+                    version.setdefault('source', current_source)
         entry["versions"] = versions
         if old and entry == old:
             return old

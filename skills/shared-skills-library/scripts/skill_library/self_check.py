@@ -1,4 +1,4 @@
-"""Fresh, read-only checks of the executing manager, Shared Skills Library v1.0.2."""
+"""Fresh, read-only checks of the executing manager, Shared Skills Library v1.0.3."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -39,12 +39,6 @@ def latest_revision():
     return revision
 
 
-def _version(directory):
-    text = (Path(directory) / 'SKILL.md').read_text(encoding='utf-8-sig')
-    match = re.search(r'(?m)^\s*version:\s*[\"\']?(\d+(?:\.\d+)+)', text)
-    return tuple(map(int, match[1].split('.'))) if match else None
-
-
 def check_manager(manager, entry=None, *, offline=False):
     """Compare real running bytes to fresh publisher bytes, without library writes.
 
@@ -72,19 +66,28 @@ def check_manager(manager, entry=None, *, offline=False):
                 result.update(status='current', detail='The running manager matches the current publisher package.')
                 return result
             # Prove the running baseline independently of the selected shared hash.
-            source = (entry or {}).get('source') or {}
-            baseline = source.get('revision')
             verified = False
-            if (source.get('repository') == REPOSITORY and source.get('path') == SOURCE_PATH
-                    and isinstance(baseline, str) and COMMIT.fullmatch(baseline) and baseline != revision):
-                previous = download_github_skill(SOURCE, baseline, Path(temporary) / 'baseline')
-                verified = fingerprint(previous) == actual
-            # Older installed versions remain verifiable when the shared selection
-            # has advanced: compare only recorded immutable package contents.
-            if not verified and source.get('baseline_verified') is True:
-                known = {item.get('hash') for item in (entry or {}).get('versions', [])}
-                local_version, remote_version = _version(manager), _version(latest)
-                verified = actual in known and local_version is not None and remote_version is not None and local_version < remote_version
+            history = (entry or {}).get('versions', [])
+            if not isinstance(history, list) or any(not isinstance(item, dict) or
+                    not isinstance(item.get('source', {}), dict) for item in history):
+                result['detail'] = 'Manager source history is damaged. Library work is paused.'
+                return result
+            sources = [item.get('source') or {} for item in history
+                       if item.get('hash') == actual]
+            sources.append((entry or {}).get('source') or {})
+            seen = {revision}
+            for source in sources:
+                baseline = source.get('revision')
+                if (source.get('kind') != 'github' or source.get('repository') != REPOSITORY
+                        or source.get('path') != SOURCE_PATH or not isinstance(baseline, str)
+                        or not COMMIT.fullmatch(baseline) or baseline in seen):
+                    continue
+                seen.add(baseline)
+                previous = download_github_skill(SOURCE, baseline, Path(temporary) / ('baseline-' + str(len(seen))))
+                if fingerprint(previous) == actual:
+                    verified = True
+                    result['current_revision'] = baseline
+                    break
             if verified:
                 result.update(status='update_available',
                               detail='A Shared Skills Library update is pending. Library work is paused; request the manager update first.')

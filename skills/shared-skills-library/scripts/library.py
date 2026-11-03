@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared Skills Library v1.0.2 command entry point."""
+"""Shared Skills Library v1.0.3 command entry point."""
 from skill_library.cli import main
 
 if __name__ == '__main__':

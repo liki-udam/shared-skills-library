@@ -33,7 +33,8 @@ class ManagerCheckTests(unittest.TestCase):
 
     def entry(self):
         return {'source': dict(self_check.SOURCE, revision='a' * 40, baseline_verified=True),
-                'versions': [{'hash': fingerprint(self.manager)}]}
+                'versions': [{'hash': fingerprint(self.manager),
+                              'source': dict(self_check.SOURCE, revision='a' * 40, baseline_verified=True)}]}
 
     def check(self, entry=None, baseline=None):
         def download(source, revision, destination):
@@ -67,7 +68,7 @@ class ManagerCheckTests(unittest.TestCase):
         entry = self.entry()
         entry['source']['revision'] = 'b' * 40
         entry['package'] = {'hash': fingerprint(self.latest)}
-        self.assertEqual(self.check(entry)['status'], 'update_available')
+        self.assertEqual(self.check(entry, self.manager)['status'], 'update_available')
 
     def test_offline_never_contacts_publisher(self):
         with patch.object(self_check, 'latest_revision') as fetch:

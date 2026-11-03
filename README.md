@@ -1,6 +1,6 @@
 # Shared Skills Library
 
-Version 1.0.2. A standalone Codex skill for managing a Google Drive skills library across Windows and macOS.
+Version 1.0.3. A standalone Codex skill for managing a Google Drive skills library across Windows and macOS.
 
 ## Install in Codex
 
