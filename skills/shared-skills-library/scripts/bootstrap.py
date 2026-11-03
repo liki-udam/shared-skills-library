@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared Skills Library v1.0.1: pair a downloaded skill or shared master."""
+"""Shared Skills Library v1.0.2: pair a downloaded skill or shared master."""
 import argparse
 from pathlib import Path
 import sys

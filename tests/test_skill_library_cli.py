@@ -5,6 +5,7 @@ import io
 import os
 from pathlib import Path
 import subprocess
+from command_fixture import run_command
 import shutil
 import sys
 import tempfile
@@ -22,6 +23,9 @@ RUNNER = MANAGER / 'scripts/library.py'
 
 class LibraryCommandTests(unittest.TestCase):
     def setUp(self):
+        self.guard = patch.object(cli, 'check_manager', return_value={'status': 'current', 'detail': 'Fixture manager'})
+        self.guard.start()
+        self.addCleanup(self.guard.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / 'My Drive' / 'Skills and Plugins'
@@ -30,7 +34,7 @@ class LibraryCommandTests(unittest.TestCase):
         self.skills = Path(self.temp.name) / 'user' / '.agents' / 'skills'
 
     def run_cli(self, *args):
-        return subprocess.run([
+        return run_command([
             sys.executable, str(RUNNER), '--library-root', str(self.root),
             '--config', str(self.config), '--offline', '--json', *args,
         ], capture_output=True, text=True, timeout=30)
@@ -76,7 +80,7 @@ class LibraryCommandTests(unittest.TestCase):
         installed = self.skills / 'shared-skills-library'
         with (installed / 'SKILL.md').open('a') as stream:
             stream.write('\nUnpublished local edit.\n')
-        result = subprocess.run([sys.executable, str(installed / 'scripts/library.py'), '--library-root', str(self.root), '--config', str(self.config), '--offline', '--json', 'setup'], capture_output=True, text=True, timeout=30)
+        result = run_command([sys.executable, str(installed / 'scripts/library.py'), '--library-root', str(self.root), '--config', str(self.config), '--offline', '--json', 'setup'], capture_output=True, text=True, timeout=30)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(library.get('shared-skills-library')['package']['hash'], original['package']['hash'])
 
@@ -112,7 +116,7 @@ class LibraryCommandTests(unittest.TestCase):
         source = {'kind': 'marketplace', 'reference': 'unicode-tools@personal'}
         identity = entry_id('plugin', 'unicode-tools', source)
         Library(self.root).save_entry({'id': identity, 'name': 'unicode-tools', 'kind': 'plugin', 'version': '1.0.0', 'source': source, 'plugin': {'id': 'unicode-tools@personal', 'display_name': '\U0001f510 Unicode Tools', 'version': '1.0.0', 'install_reference': 'unicode-tools@personal'}, 'skills': []})
-        result = subprocess.run([sys.executable, str(RUNNER), '--library-root', str(self.root), '--config', str(self.config), '--offline', '--json', 'list'], capture_output=True, env=dict(os.environ, PYTHONIOENCODING='cp1252'), timeout=30)
+        result = run_command([sys.executable, str(RUNNER), '--library-root', str(self.root), '--config', str(self.config), '--offline', '--json', 'list'], capture_output=True, env=dict(os.environ, PYTHONIOENCODING='cp1252'), timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8', errors='replace') + result.stdout.decode('utf-8', errors='replace'))
         data = json.loads(result.stdout.decode('utf-8'))
         self.assertEqual(next(item for item in data['result'] if item['id'] == identity)['plugin']['display_name'], '\U0001f510 Unicode Tools')

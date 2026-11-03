@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "library/skills/shared-skills-library/scripts"
+SCRIPTS = Path(__file__).resolve().parents[1] / "skills/shared-skills-library/scripts"
 sys.path.insert(0, str(SCRIPTS))
 from skill_library.store import Library, LibraryError, entry_id, fingerprint, read_skill
 

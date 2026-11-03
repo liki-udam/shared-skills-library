@@ -1,4 +1,4 @@
-"""Shared Skills Library v1.0.1: read installed packages without executing them."""
+"""Shared Skills Library v1.0.2: read installed packages without executing them."""
 from __future__ import annotations
 
 import json

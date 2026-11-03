@@ -1,4 +1,4 @@
-"""Shared Skills Library v1.0.1: download a complete, pinned GitHub skill."""
+"""Shared Skills Library v1.0.2: download a complete, pinned GitHub skill."""
 from __future__ import annotations
 
 from io import BytesIO

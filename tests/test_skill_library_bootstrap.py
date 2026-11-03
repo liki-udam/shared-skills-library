@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+from command_fixture import run_command
 import sys
 import tempfile
 import unittest
@@ -41,7 +42,7 @@ class DownloadedSetupTests(unittest.TestCase):
         self.entry = self.library.publish(self.master, {'id': LEGACY_ID, 'source': SOURCE, 'version': cli.VERSION})
 
     def bootstrap(self, *args, skill=None):
-        return subprocess.run([sys.executable, str((skill or self.download) / 'scripts/bootstrap.py'),
+        return run_command([sys.executable, str((skill or self.download) / 'scripts/bootstrap.py'),
                                '--config', str(self.config), '--offline', '--json', *map(str, args)],
                               capture_output=True, text=True, encoding='utf-8', timeout=30,
                               env=dict(os.environ, CODEX_HOME=str(self.codex)))
@@ -103,7 +104,7 @@ class DownloadedSetupTests(unittest.TestCase):
         shutil.copytree(self.master, newer)
         skill = newer / 'SKILL.md'
         text = skill.read_text(encoding='utf-8')
-        skill.write_text(text.replace('version: "1.0.1"', 'version: "2.0.0"'), encoding='utf-8')
+        skill.write_text(text.replace('version: "' + cli.VERSION + '"', 'version: "2.0.0"'), encoding='utf-8')
         updated = self.library.publish(newer, {'id': LEGACY_ID, 'source': SOURCE, 'version': '2.0.0'}, promote=True)
         self.library.install(LEGACY_ID, self.download.parent)
         reverted = self.library.publish(self.master, {'id': LEGACY_ID, 'source': SOURCE, 'version': cli.VERSION}, promote=True)

@@ -1,4 +1,4 @@
-# Shared Skills Library setup v1.0.1. Uses an existing Python interpreter only.
+# Shared Skills Library setup v1.0.2. Uses an existing Python interpreter only.
 param([string]$DeviceName, [string]$SkillsRoot, [string]$LibraryRoot)
 $ErrorActionPreference = 'Stop'
 $taskBootstrap = Join-Path $PSScriptRoot 'bootstrap.py'

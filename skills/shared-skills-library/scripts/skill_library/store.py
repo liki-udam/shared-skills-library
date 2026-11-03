@@ -1,4 +1,4 @@
-"""Portable, verified skill packages and reversible local installation, v1.0.1.
+"""Portable, verified skill packages and reversible local installation, v1.0.2.
 
 Each package is immutable. Expected-content checks detect stale local writers;
 they are not a distributed lock against another computer's Drive client.
@@ -165,7 +165,10 @@ def read_skill(path: Path) -> dict:
         raise LibraryError("Invalid skill name in SKILL.md")
     if not result.get("description"):
         raise LibraryError("SKILL.md description is required")
-    result.setdefault("version", "unknown")
+    if 'version' not in result:
+        metadata = re.search(r'(?m)^metadata:\s*\r?\n((?:[ \t]+[^\r\n]*\r?\n?)*)', match.group(1))
+        nested = re.search(r'(?m)^\s+version:\s*[\"\']?([^\s\"\']+)', metadata[1]) if metadata else None
+        result['version'] = nested[1] if nested else 'unknown'
     return result
 
 

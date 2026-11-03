@@ -1,4 +1,4 @@
-# Shared Skills Library v1.0.1
+# Shared Skills Library v1.0.2
 
 ## Using it in chat
 
@@ -10,7 +10,7 @@
 - “Update Humanizer from its original source and share the new version.”
 - “Remove this skill from this device.”
 
-Every substantive use checks for updates. A check reports available changes; it does not apply them. When a publisher does not expose a verifiable version, the result explains what cannot be established. No scheduled or background task is installed.
+Every use checks the running manager against its original GitHub package before library work starts. When current, continue without an update-status message. When an update is pending, tell the user first and pause. When the check fails, explain why and pause. No update is applied without an explicit request. Relevant checks of other packages still run after the manager passes. No scheduled or background task is installed.
 
 ## Set up another Windows computer or Mac
 
@@ -52,10 +52,17 @@ Run the installed `scripts/library.py` through the available Python interpreter.
 python library.py [--library-root PATH] [--config PATH] [--offline] [--json] COMMAND
 ```
 
-`--offline` explicitly skips online checks and reports them incomplete. It is useful for disconnected setup/tests; do not use it to imply an online check passed.
+`--offline` cannot verify manager freshness, so operational commands pause without changing library state. Help remains available offline.
+
+`self-check` needs no configured device or library. It writes no catalogue, package, settings or device receipt. Human output is silent when current. JSON output contains `manager_check` with status, check time, source URL and available revision/content hashes. Exit codes are 0 for current, 3 for an available update and 4 for verification failure. Blocked operations use the same codes and return `paused: true`. Successful operational JSON retains `version`, `result` and `checks`, and adds `manager_check`.
+
+The check compares actual running files with the pinned publisher package, ignoring repository changes outside the manager folder. API failure falls back to Git ref discovery; Git is needed only for that fallback. Network calls are bounded, do not prompt for sign-in and never reuse an earlier invocation's current status. An unrecognised local modification is preserved and pauses work. A shared catalogue version alone never proves the running copy is current.
+
+When explicitly authorised, `update shared-skills-library --from-source` may resolve a detected pending update. An unrelated command or offline flag cannot bypass the check. Run `self-check` again after updating before resuming the original task.
 
 | Command | Behaviour |
 |---|---|
+| `self-check` | Read-only check of the executing manager; silent when current, otherwise pause. |
 | `setup [--device-name NAME] [--skills-root PATH]` | Register this device and install the selected shared manager. Initialise its package only if no shared record exists. |
 | `list`, `search WORDS`, `status [NAME]` | Show library entries and dated update results. |
 | `show NAME` | Show source, package, plugin parent, requirements and update detail. |

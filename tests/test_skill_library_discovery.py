@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "library/skills/shared-skills-library/scripts"
+SCRIPTS = Path(__file__).resolve().parents[1] / "skills/shared-skills-library/scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 

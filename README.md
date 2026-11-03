@@ -1,6 +1,6 @@
 # Shared Skills Library
 
-Version 1.0.1. A standalone Codex skill for managing a Google Drive skills library across Windows and macOS.
+Version 1.0.2. A standalone Codex skill for managing a Google Drive skills library across Windows and macOS.
 
 ## Install in Codex
 
@@ -16,7 +16,7 @@ For agents using the standard Codex skill installer, the repository is `liki-uda
 
 - Finds standalone skills and whole plugins in your shared library.
 - Shows original sources, versions, requirements, costs and dated device observations.
-- Checks relevant original sources whenever you use the library, and applies updates only when requested.
+- Checks the executing manager's original source before library work: current continues silently; a pending update or failed verification pauses work. Relevant package checks still run afterwards. Updates apply only when requested.
 - Preserves local edits, keeps complete portable packages and backs up known previous installations.
 - Labels plugin-supplied skills with their parent plugin and routes installation through the whole plugin.
 

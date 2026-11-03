@@ -1,4 +1,4 @@
-"""Shared Skills Library v1.0.1: bounded read-only source update checks."""
+"""Shared Skills Library v1.0.2: bounded read-only source update checks."""
 from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor

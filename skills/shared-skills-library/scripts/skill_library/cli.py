@@ -1,4 +1,4 @@
-"""Shared Skills Library v1.0.1: commands, dated device receipts and catalogue."""
+"""Shared Skills Library v1.0.2: commands, dated device receipts and catalogue."""
 from __future__ import annotations
 
 import argparse
@@ -18,8 +18,9 @@ from urllib.parse import urlsplit
 from .discovery import discover_plugins, discover_standalone
 from .store import Library, LibraryError, entry_id, fingerprint, read_skill
 from .updates import check_all
+from .self_check import check_manager
 
-VERSION = '1.0.1'
+VERSION = '1.0.2'
 MANAGER_NAME = 'shared-skills-library'
 MANAGER_REPOSITORY = 'liki-udam/shared-skills-library'
 MANAGER_SOURCE_PATH = 'skills/shared-skills-library'
@@ -467,12 +468,13 @@ def update_from_source(library, settings, entry, check, skills_root=None):
 
 
 def parser():
-    command = argparse.ArgumentParser(description='Shared Skills Library v1.0.1')
+    command = argparse.ArgumentParser(description='Shared Skills Library v1.0.2')
     command.add_argument('--library-root', type=Path)
     command.add_argument('--config', type=Path)
     command.add_argument('--offline', action='store_true')
     command.add_argument('--json', action='store_true')
     subs = command.add_subparsers(dest='command', required=True)
+    subs.add_parser('self-check')
     setup = subs.add_parser('setup')
     setup.add_argument('--device-name')
     setup.add_argument('--skills-root')
@@ -516,9 +518,22 @@ def main(argv=None):
     try:
         settings = read_json(config_path, {})
         root = args.library_root or settings.get('library_root') or os.environ.get('SKILL_LIBRARY_ROOT')
+        library = Library(Path(root)) if root else None
+        manager = manager_entry(library) if library is not None else None
+        manager_check = check_manager(Path(__file__).resolve().parents[2], manager, offline=args.offline)
+        manager_update = (args.command == 'update' and manager is not None
+                          and args.name in {manager['id'], manager['name']})
+        if args.command == 'self-check' or (manager_check['status'] != 'current' and not
+                (manager_update and manager_check['status'] == 'update_available')):
+            code = {'current': 0, 'update_available': 3, 'verification_failed': 4}[manager_check['status']]
+            if args.json:
+                print(json.dumps({'version': VERSION, 'status': manager_check['status'],
+                                  'paused': code != 0, 'manager_check': manager_check}, ensure_ascii=False))
+            elif code:
+                print(manager_check['detail'], file=sys.stderr)
+            return code
         if not root:
             raise LibraryError('Run setup from the shared Google Drive master before using this device.')
-        library = Library(Path(root))
         if args.command == 'setup':
             settings, result = configure(library, args, config_path)
             selected = library.entries()
@@ -548,7 +563,7 @@ def main(argv=None):
                 result = library.install(args.name, destination)
             elif args.command == 'update':
                 if args.from_source:
-                    precheck = refresh_checks(library, selected, settings, args.offline)[0]
+                    precheck = manager_check if manager_update and manager_check['status'] == 'update_available' else refresh_checks(library, selected, settings, args.offline)[0]
                     result = update_from_source(library, settings, selected[0], precheck, args.skills_root)
                     selected = [library.get(args.name)]
                 elif selected[0]['kind'] == 'plugin':
@@ -571,7 +586,7 @@ def main(argv=None):
         elif args.command == 'show':
             result['this_device'] = _local_status(result, settings)
         render_catalogue(library)
-        output = {'version': VERSION, 'result': result, 'checks': checks}
+        output = {'version': VERSION, 'result': result, 'checks': checks, 'manager_check': manager_check}
         if args.json:
             print(json.dumps(output, indent=2, ensure_ascii=False))
         else:
@@ -595,6 +610,8 @@ def print_human(output):
     elif isinstance(result, dict):
         print(json.dumps(result, indent=2, ensure_ascii=False))
     for check in output.get('checks', []):
+        if check.get('id') == LEGACY_MANAGER_ID and check.get('status') == 'current':
+            continue
         print('Check: ' + str(check['id']) + ' | ' + check['status'] + ' | ' + check.get('detail', ''))
 
 
